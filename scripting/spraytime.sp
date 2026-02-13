@@ -7,10 +7,13 @@ Database g_hDatabase = null;
 
 float g_flSessionTime[MAXPLAYERS + 1];
 int   g_iTotalPlaytime[MAXPLAYERS + 1];
+
+int   g_iBypassFlags;
 bool  g_bIsSQLite;
 
 static ConVar cvar_timeRequirement;
 static ConVar cvar_notify;
+static ConVar cvar_bypassFlag;
 
 public Plugin myinfo =
 {
@@ -33,7 +36,14 @@ public OnPluginStart()
 	
 	cvar_timeRequirement = CreateConVar("st_timerequirement", "3600", "A player must spend this many seconds on the server before they can spray.", _, true, 0.0);
 	cvar_notify = CreateConVar("st_notify", "1", "Should the player be told how long until they can spray?", _, true, 0.0, true, 1.0);
+	cvar_bypassFlag = CreateConVar("st_bypass_flag", "ab", "Admin flag required to bypass spray restriction.");
 	
+	HookConVarChange(cvar_bypassFlag, OnBypassFlagChange);
+	
+    char flags[8];
+    cvar_bypassFlag.GetString(flags, sizeof(flags));
+    g_iBypassFlags = ReadFlagString(flags);
+
 	AutoExecConfig(true, "spraytime");
 }
 
@@ -92,6 +102,10 @@ public Action TE_PlayerDecal(const char[] te_name, const int[] players, int numC
 	//Is this even a valid client?
 	if(IsValidClient(client))
 	{
+		// does this client have bypass flags?
+		if (GetUserFlagBits(client) & g_iBypassFlags)
+			return Plugin_Continue;
+		
 		int totalTime = g_iTotalPlaytime[client] + GetSessionPlaytime(client);
 		int timeRequirement = cvar_timeRequirement.IntValue;
 		
@@ -206,6 +220,13 @@ public Action Timer_SavePlaytime(Handle timer)
 	}
 
 	return Plugin_Continue;
+}
+
+public void OnBypassFlagChange(ConVar convar, const char[] oldValue, const char[] newValue)
+{
+    char flags[8];
+    cvar_bypassFlag.GetString(flags, sizeof(flags));
+    g_iBypassFlags = ReadFlagString(flags);
 }
 
 void FormatRemainingTime(int seconds, char[] buffer, int maxlen)
