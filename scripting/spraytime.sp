@@ -7,15 +7,17 @@ Database g_hDatabase = null;
 
 float g_flSessionTime[MAXPLAYERS + 1];
 int   g_iTotalPlaytime[MAXPLAYERS + 1];
+bool  g_bIsSQLite;
 
 static ConVar cvar_timeRequirement;
+static ConVar cvar_notify;
 
 public Plugin myinfo =
 {
 	name = "New Player Spray Blocking",
 	author = "Jester",
 	description = "Blocks sprays until a playtime threshold has been met.",
-	version = "1.0",
+	version = "1.0.1",
 	url = "https://github.com/magisjester"
 };
 
@@ -30,6 +32,7 @@ public OnPluginStart()
 	CreateTimer(SAVE_INTERVAL, Timer_SavePlaytime, _, TIMER_REPEAT);
 	
 	cvar_timeRequirement = CreateConVar("st_timerequirement", "3600", "A player must spend this many seconds on the server before they can spray.", _, true, 0.0);
+	cvar_notify = CreateConVar("st_notify", "1", "Should the player be told how long until they can spray?", _, true, 0.0, true, 1.0);
 	
 	AutoExecConfig(true, "spraytime");
 }
@@ -43,7 +46,12 @@ public void OnDatabaseConnected(Database db, const char[] error, any data)
 	}
 
 	g_hDatabase = db;
-
+	
+	char driver[16];
+	g_hDatabase.Driver.GetIdentifier(driver, sizeof(driver))
+	
+	g_bIsSQLite = StrEqual(driver, "sqllite"); // we need this to make sure we can properly save to sqllite
+	
 	char query[256];
 	FormatEx(query, sizeof(query), "CREATE TABLE IF NOT EXISTS spraytime (auth VARCHAR(64) NOT NULL PRIMARY KEY, time INT NOT NULL DEFAULT 0)");
 
@@ -89,15 +97,18 @@ public Action TE_PlayerDecal(const char[] te_name, const int[] players, int numC
 		
 		if (totalTime < timeRequirement)
 		{
-			int remaining = timeRequirement - totalTime;
+			if (cvar_notify.BoolValue)
+			{
+				int remaining = timeRequirement - totalTime;
 
-			char timeLeft[32];
-			FormatRemainingTime(remaining, timeLeft, sizeof(timeLeft));
+				char timeLeft[32];
+				FormatRemainingTime(remaining, timeLeft, sizeof(timeLeft));
 
-			PrintToChat(client,
-				"/x04[Spray Time Checker]/x01 You can spray in %s.",
-				timeLeft
-			);
+				PrintToChat(client,
+					"/x04[Spray Time Checker]/x01 You can spray in %s.",
+					timeLeft
+				);
+			}
 
 			return Plugin_Handled;
 		}
@@ -118,12 +129,9 @@ void SavePlaytime(int client, int seconds)
 
 	char authEscaped[64];
 	g_hDatabase.Escape(auth, authEscaped, sizeof(authEscaped));
-
-	char driver[16];
-	g_hDatabase.Driver.GetIdentifier(driver, sizeof(driver));
 	
 	char query[512];
-	if (StrEqual(driver, "sqlite"))
+	if (g_bIsSQLite)
 	{
 		FormatEx(query, sizeof(query), "INSERT INTO spraytime (auth, time) VALUES ('%s', %d) ON CONFLICT(auth) DO UPDATE SET time = time + %d", authEscaped, seconds, seconds);
 	}
@@ -221,16 +229,11 @@ int GetSessionPlaytime(int client)
 
 stock bool IsValidClient(int iClient)
 {
-	if (iClient >= 1 &&
+	return (iClient >= 1 &&
 		iClient <= MaxClients &&
 		IsClientConnected(iClient) &&
 		IsClientInGame(iClient) &&
 		!IsFakeClient(iClient) &&
 		!IsClientSourceTV(iClient) &&
-		!IsClientReplay(iClient))
-	{
-		return true;
-	}
-
-	return false;
+		!IsClientReplay(iClient));
 }
