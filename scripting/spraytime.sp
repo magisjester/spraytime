@@ -35,7 +35,7 @@ public OnPluginStart()
 	CreateTimer(SAVE_INTERVAL, Timer_SavePlaytime, _, TIMER_REPEAT);
 	
 	cvar_timeRequirement = CreateConVar("st_timerequirement", "3600", "A player must spend this many seconds on the server before they can spray.", _, true, 0.0);
-	cvar_notify = CreateConVar("st_notify", "1", "Should the player be told how long until they can spray?", _, true, 0.0, true, 1.0);
+	cvar_notify = CreateConVar("st_notify", "1", "A player will be notified in chat if they can spray or not.", _, true, 0.0, true, 1.0);
 	cvar_bypassFlag = CreateConVar("st_bypass_flag", "ab", "Admin flag required to bypass spray restriction.");
 	
 	HookConVarChange(cvar_bypassFlag, OnBypassFlagChange);
@@ -60,7 +60,7 @@ public void OnDatabaseConnected(Database db, const char[] error, any data)
 	char driver[16];
 	g_hDatabase.Driver.GetIdentifier(driver, sizeof(driver))
 	
-	g_bIsSQLite = StrEqual(driver, "sqllite"); // we need this to make sure we can properly save to sqllite
+	g_bIsSQLite = StrEqual(driver, "sqlite", false); // we need this to make sure we can properly save to sqlite
 	
 	char query[256];
 	FormatEx(query, sizeof(query), "CREATE TABLE IF NOT EXISTS spraytime (auth VARCHAR(64) NOT NULL PRIMARY KEY, time INT NOT NULL DEFAULT 0)");
@@ -119,7 +119,7 @@ public Action TE_PlayerDecal(const char[] te_name, const int[] players, int numC
 				FormatRemainingTime(remaining, timeLeft, sizeof(timeLeft));
 
 				PrintToChat(client,
-					"/x04[Spray Time Checker]/x01 You can spray in %s.",
+					"\x04[Spray Time Checker]\x01 You can spray in %s.",
 					timeLeft
 				);
 			}
